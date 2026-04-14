@@ -80,9 +80,9 @@ const withKmCertoResources = (config) => {
     const xmlDir = path.join(resDir, "xml");
     if (!fs.existsSync(xmlDir)) fs.mkdirSync(xmlDir, { recursive: true });
 
-    // CORREÇÃO CRÍTICA: NÃO filtrar por packageNames na configuração XML
-    // Isso permite que o serviço receba eventos de TODOS os apps
-    // A filtragem é feita no código Kotlin para maior flexibilidade
+    // CORREÇÃO: notificationTimeout reduzido de 50 para 30ms
+    // para diminuir a latência na detecção de corridas.
+    // NÃO filtrar por packageNames — a filtragem é feita no Kotlin.
     fs.writeFileSync(path.join(xmlDir, "kmcerto_accessibility_service_config.xml"),
       `<?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
@@ -90,7 +90,7 @@ const withKmCertoResources = (config) => {
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagReportViewIds|flagIncludeNotImportantViews|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
-    android:notificationTimeout="50"
+    android:notificationTimeout="30"
     android:description="@string/kmcerto_accessibility_description" />`
     );
 
