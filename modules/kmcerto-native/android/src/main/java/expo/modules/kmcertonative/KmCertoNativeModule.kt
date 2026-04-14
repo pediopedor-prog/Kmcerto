@@ -151,14 +151,32 @@ object KmCertoRuntime {
   const val DEFAULT_MIN_KM = 1.5
   private const val PREFS = "kmcerto_prefs"
 
-  // Mapa COMPLETO de packages suportados
+  // ══════════════════════════════════════════════════════════════
+  // CORREÇÃO: Adicionados TODOS os packages conhecidos da 99
+  // O package principal da 99 pode ser "com.taxis99.driver",
+  // "com.app99.driver" ou "com.ninety9.driver" dependendo da versão.
+  // Também adicionado "br.com.ifood.courier" como alternativa do iFood.
+  // ══════════════════════════════════════════════════════════════
   val supportedPackages = mapOf(
+    // Uber
     "com.ubercab.driver" to "Uber",
     "com.ubercab.driver:id" to "Uber",
+    "com.ubercab" to "Uber",
+    // 99 — múltiplos packages possíveis
     "com.app99.driver" to "99",
+    "com.taxis99.driver" to "99",
+    "com.taxis99" to "99",
+    "com.ninety9.driver" to "99",
+    "br.com.driver99" to "99",
+    "com.app99" to "99",
+    // iFood
     "br.com.ifood.driver.app" to "iFood",
+    "br.com.ifood.courier" to "iFood",
+    "br.com.ifood.driver" to "iFood",
+    // inDrive
     "com.machfreetaxi.passenger.didi" to "inDrive",
     "com.indrive.driver" to "inDrive",
+    // Lalamove
     "com.lalamove.huolala.client" to "Lalamove",
   )
 
@@ -167,7 +185,6 @@ object KmCertoRuntime {
   // O sistema usa fallback por texto quando IDs não são encontrados.
   val knownResourceIds = mapOf(
     "com.ubercab.driver" to listOf(
-      // IDs comuns do Uber Driver (podem variar por versão)
       "com.ubercab.driver:id/fare_value",
       "com.ubercab.driver:id/trip_price",
       "com.ubercab.driver:id/text_price",
@@ -179,6 +196,12 @@ object KmCertoRuntime {
       "com.ubercab.driver:id/text_duration",
       "com.ubercab.driver:id/trip_card_fare",
       "com.ubercab.driver:id/upfront_fare_value",
+      // IDs adicionais comuns em versões recentes
+      "com.ubercab.driver:id/trip_fare_text",
+      "com.ubercab.driver:id/fare_amount",
+      "com.ubercab.driver:id/earning_value",
+      "com.ubercab.driver:id/trip_info_distance",
+      "com.ubercab.driver:id/trip_info_time",
     ),
     "com.app99.driver" to listOf(
       "com.app99.driver:id/price",
@@ -191,8 +214,18 @@ object KmCertoRuntime {
       "com.app99.driver:id/text_value",
       "com.app99.driver:id/text_distance",
     ),
+    "com.taxis99.driver" to listOf(
+      "com.taxis99.driver:id/price",
+      "com.taxis99.driver:id/distance",
+      "com.taxis99.driver:id/duration",
+      "com.taxis99.driver:id/trip_value",
+      "com.taxis99.driver:id/tv_price",
+      "com.taxis99.driver:id/tv_distance",
+      "com.taxis99.driver:id/tv_duration",
+      "com.taxis99.driver:id/text_value",
+      "com.taxis99.driver:id/text_distance",
+    ),
     "br.com.ifood.driver.app" to listOf(
-      // iFood usa Compose/RN — IDs são raros, mas tentamos
       "br.com.ifood.driver.app:id/deliveryFee",
       "br.com.ifood.driver.app:id/delivery_fee",
       "br.com.ifood.driver.app:id/distance",
@@ -221,8 +254,20 @@ object KmCertoRuntime {
   }
 
   fun normalizePackage(pkg: String): String {
-    // Remove sufixos como ":id" para obter o package base
     return pkg.substringBefore(":")
+  }
+
+  /**
+   * Retorna os Resource IDs para um package, tentando variantes.
+   * Ex: para "com.taxis99.driver" tenta também "com.app99.driver".
+   */
+  fun getResourceIdsForPackage(pkg: String): List<String>? {
+    val basePkg = normalizePackage(pkg)
+    // Tentar o package exato primeiro
+    knownResourceIds[basePkg]?.let { return it }
+    // Tentar variantes do mesmo app
+    val label = sourceLabel(pkg)
+    return knownResourceIds.entries.firstOrNull { sourceLabel(it.key) == label }?.value
   }
 
   private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -263,8 +308,8 @@ data class OfferDecisionData(
         OfferDecisionData(
           totalFare = p.optDouble("totalFare", Double.NaN),
           totalFareLabel = p.optString("totalFareLabel", ""),
-          status = p.optString("status", "REJEITAR"),
-          statusColor = p.optString("statusColor", "#FF0000"),
+          status = p.optString("status", "RECUSAR"),
+          statusColor = p.optString("statusColor", "#F44336"),
           perKm = p.optDouble("perKm", 0.0),
           perHour = if (p.has("perHour")) p.optDouble("perHour") else null,
           perMinute = if (p.has("perMinute")) p.optDouble("perMinute") else null,
@@ -302,6 +347,10 @@ class KmCertoAccessibilityService : AccessibilityService() {
     val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
     wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "KmCerto:WakeLock")
 
+    // ══════════════════════════════════════════════════════════════
+    // CORREÇÃO: notificationTimeout reduzido de 100 para 30ms
+    // para diminuir a latência na detecção de corridas.
+    // ══════════════════════════════════════════════════════════════
     serviceInfo = AccessibilityServiceInfo().apply {
       eventTypes = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
                    AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
@@ -310,7 +359,7 @@ class KmCertoAccessibilityService : AccessibilityService() {
       flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
               AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
               AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
-      notificationTimeout = 100
+      notificationTimeout = 30
     }
   }
 
@@ -354,7 +403,7 @@ class KmCertoAccessibilityService : AccessibilityService() {
           // Tentar busca direta por Resource ID
           val directResult = tryDirectIdSearchOnNode(sourceNode, sourcePkg)
           if (directResult != null) {
-            KmCertoLogger.log("ID_DIRETO_OK ${directResult.totalFareLabel} | ${directResult.distanceKm}km | ${directResult.status}")
+            KmCertoLogger.log("ID_DIRETO_OK ${directResult.totalFareLabel} | ${directResult.distanceKm}km | ${directResult.totalMinutes}min | ${directResult.status}")
             emitIfNew(directResult, sourcePkg)
             try { sourceNode.recycle() } catch (_: Throwable) {}
             return
@@ -363,7 +412,7 @@ class KmCertoAccessibilityService : AccessibilityService() {
           // Fallback: parse por texto
           val parsed = KmCertoOfferParser.parse(text, KmCertoRuntime.getMinimumPerKm(this), sourcePkg)
           if (parsed != null) {
-            KmCertoLogger.log("PARSE_OK(source) ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.status}")
+            KmCertoLogger.log("PARSE_OK(source) ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.totalMinutes}min | ${parsed.status}")
             emitIfNew(parsed, sourcePkg)
             try { sourceNode.recycle() } catch (_: Throwable) {}
             return
@@ -378,7 +427,7 @@ class KmCertoAccessibilityService : AccessibilityService() {
             KmCertoLogger.log("TREE_PKG[$foundPkg] texto(${text.length}): ${text.take(300)}")
             val parsed = KmCertoOfferParser.parse(text, KmCertoRuntime.getMinimumPerKm(this), foundPkg)
             if (parsed != null) {
-              KmCertoLogger.log("PARSE_OK(tree) ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.status}")
+              KmCertoLogger.log("PARSE_OK(tree) ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.totalMinutes}min | ${parsed.status}")
               emitIfNew(parsed, foundPkg)
               try { sourceNode.recycle() } catch (_: Throwable) {}
               return
@@ -427,7 +476,7 @@ class KmCertoAccessibilityService : AccessibilityService() {
             // Tentar busca direta por Resource ID
             val directResult = tryDirectIdSearchOnNode(root, detectedPkg)
             if (directResult != null) {
-              KmCertoLogger.log("WIN_ID_OK ${directResult.totalFareLabel} | ${directResult.distanceKm}km | ${directResult.status}")
+              KmCertoLogger.log("WIN_ID_OK ${directResult.totalFareLabel} | ${directResult.distanceKm}km | ${directResult.totalMinutes}min | ${directResult.status}")
               emitIfNew(directResult, detectedPkg)
               try { root.recycle() } catch (_: Throwable) {}
               return
@@ -436,7 +485,7 @@ class KmCertoAccessibilityService : AccessibilityService() {
             // Fallback: parse por texto
             val parsed = KmCertoOfferParser.parse(text, KmCertoRuntime.getMinimumPerKm(this), detectedPkg)
             if (parsed != null) {
-              KmCertoLogger.log("WIN_PARSE_OK ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.status}")
+              KmCertoLogger.log("WIN_PARSE_OK ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.totalMinutes}min | ${parsed.status}")
               emitIfNew(parsed, detectedPkg)
               try { root.recycle() } catch (_: Throwable) {}
               return
@@ -459,7 +508,7 @@ class KmCertoAccessibilityService : AccessibilityService() {
 
             val directResult = tryDirectIdSearchOnNode(root, rootPkg)
             if (directResult != null) {
-              KmCertoLogger.log("ROOT_ID_OK ${directResult.totalFareLabel} | ${directResult.distanceKm}km | ${directResult.status}")
+              KmCertoLogger.log("ROOT_ID_OK ${directResult.totalFareLabel} | ${directResult.distanceKm}km | ${directResult.totalMinutes}min | ${directResult.status}")
               emitIfNew(directResult, rootPkg)
               try { root.recycle() } catch (_: Throwable) {}
               return
@@ -467,7 +516,7 @@ class KmCertoAccessibilityService : AccessibilityService() {
 
             val parsed = KmCertoOfferParser.parse(text, KmCertoRuntime.getMinimumPerKm(this), rootPkg)
             if (parsed != null) {
-              KmCertoLogger.log("ROOT_PARSE_OK ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.status}")
+              KmCertoLogger.log("ROOT_PARSE_OK ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.totalMinutes}min | ${parsed.status}")
               emitIfNew(parsed, rootPkg)
             }
           }
@@ -480,10 +529,11 @@ class KmCertoAccessibilityService : AccessibilityService() {
   /**
    * Busca por Resource ID diretamente em um nó (abordagem GigU).
    * Mais rápida e precisa que parse por texto.
+   * CORREÇÃO: Usa getResourceIdsForPackage() que tenta variantes do package.
    */
   private fun tryDirectIdSearchOnNode(node: AccessibilityNodeInfo, pkg: String): OfferDecisionData? {
     val basePkg = KmCertoRuntime.normalizePackage(pkg)
-    val ids = KmCertoRuntime.knownResourceIds[basePkg] ?: return null
+    val ids = KmCertoRuntime.getResourceIdsForPackage(basePkg) ?: return null
 
     var fareText: String? = null
     var distText: String? = null
@@ -496,7 +546,7 @@ class KmCertoAccessibilityService : AccessibilityService() {
       KmCertoLogger.log("ID_ENCONTRADO $id = \"$text\"")
 
       when {
-        id.contains("fare") || id.contains("price") || id.contains("value") || id.contains("fee") -> {
+        id.contains("fare") || id.contains("price") || id.contains("value") || id.contains("fee") || id.contains("earning") || id.contains("amount") -> {
           if (fareText == null) fareText = text
         }
         id.contains("distance") || id.contains("dist") -> {
@@ -542,15 +592,22 @@ class KmCertoAccessibilityService : AccessibilityService() {
 
   /**
    * Emite resultado se for diferente do último (debounce).
-   * Assinatura inclui valor + distância para evitar falsos positivos.
+   * ══════════════════════════════════════════════════════════════
+   * CORREÇÃO: Debounce aumentado para 5000ms para a MESMA corrida
+   * para evitar que o overlay seja recriado repetidamente (bug do
+   * iFood que ficava preso na tela). Se for uma corrida DIFERENTE,
+   * emite imediatamente.
+   * ══════════════════════════════════════════════════════════════
    */
   private fun emitIfNew(parsed: OfferDecisionData, pkg: String) {
     val signature = "$pkg|${parsed.totalFare}|${parsed.distanceKm}"
     val now = System.currentTimeMillis()
-    if (signature == lastSignature && now - lastEmissionAt < 2500) {
-      KmCertoLogger.log("DEBOUNCE: ignorando duplicata ($signature)")
+
+    if (signature == lastSignature && now - lastEmissionAt < 5000) {
+      // Mesma corrida dentro de 5s — ignorar para não recriar overlay
       return
     }
+
     lastSignature = signature
     lastEmissionAt = now
 
@@ -635,7 +692,8 @@ class KmCertoNotificationService : NotificationListenerService() {
     val hasOfferKeyword = textLower.contains("corrida") || textLower.contains("viagem") ||
       textLower.contains("entrega") || textLower.contains("pedido") ||
       textLower.contains("ganho") || textLower.contains("rota") ||
-      textLower.contains("solicitação") || textLower.contains("disponível")
+      textLower.contains("solicitação") || textLower.contains("disponível") ||
+      textLower.contains("envio") || textLower.contains("moto")
 
     if (!hasMoneySign && !hasKm && !hasOfferKeyword) {
       KmCertoLogger.log("NOTIF_IGNORADA: sem indicadores de oferta")
@@ -648,7 +706,7 @@ class KmCertoNotificationService : NotificationListenerService() {
       return
     }
 
-    KmCertoLogger.log("NOTIF_OK ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.status}")
+    KmCertoLogger.log("NOTIF_OK ${parsed.totalFareLabel} | ${parsed.distanceKm}km | ${parsed.totalMinutes}min | ${parsed.status}")
     KmCertoOverlayService.show(this, parsed)
   }
 
@@ -718,12 +776,27 @@ object KmCertoLogger {
 class KmCertoOverlayService : Service() {
   companion object {
     private var overlayView: LinearLayout? = null
+    // ══════════════════════════════════════════════════════════════
+    // CORREÇÃO: Handler e Runnable separados para poder cancelar
+    // o auto-dismiss corretamente e evitar que o overlay fique preso.
+    // ══════════════════════════════════════════════════════════════
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var dismissRunnable: Runnable? = null
 
     fun show(ctx: Context, data: OfferDecisionData) {
-      Handler(Looper.getMainLooper()).post {
+      mainHandler.post {
         try {
           val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-          stop(ctx)
+
+          // Cancelar dismiss anterior antes de remover o overlay
+          dismissRunnable?.let { mainHandler.removeCallbacks(it) }
+          dismissRunnable = null
+
+          // Remover overlay anterior
+          try {
+            overlayView?.let { wm.removeView(it) }
+          } catch (_: Throwable) {}
+          overlayView = null
 
           val container = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
@@ -735,7 +808,7 @@ class KmCertoOverlayService : Service() {
             }
           }
 
-          // Status badge
+          // Botão ACEITAR/RECUSAR (status badge)
           container.addView(TextView(ctx).apply {
             text = data.status
             setTextColor(Color.WHITE)
@@ -790,18 +863,39 @@ class KmCertoOverlayService : Service() {
           data.perMinute?.let { row.addView(metric(ctx, "R$/min", it)) }
           container.addView(row)
 
+          // ══════════════════════════════════════════════════════════════
+          // CORREÇÃO: Overlay é clicável para fechar manualmente.
+          // Toque no overlay = fecha imediatamente.
+          // ══════════════════════════════════════════════════════════════
+          container.setOnClickListener {
+            stop(ctx)
+          }
+
           val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            // ══════════════════════════════════════════════════════════════
+            // CORREÇÃO: Removido FLAG_NOT_FOCUSABLE para permitir toque.
+            // Mantido FLAG_NOT_TOUCH_MODAL para que toques fora do overlay
+            // passem para o app por baixo.
+            // ══════════════════════════════════════════════════════════════
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
           ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; y = dp(ctx, 72) }
 
           wm.addView(container, params)
           overlayView = container
-          Handler(Looper.getMainLooper()).postDelayed({ stop(ctx) }, 8000)
+
+          // ══════════════════════════════════════════════════════════════
+          // CORREÇÃO: Auto-dismiss reduzido de 8000ms para 5000ms.
+          // Usa Runnable cancelável para evitar dismiss fantasma.
+          // ══════════════════════════════════════════════════════════════
+          val runnable = Runnable { stop(ctx) }
+          dismissRunnable = runnable
+          mainHandler.postDelayed(runnable, 5000)
         } catch (e: Throwable) {
           KmCertoLogger.log("OVERLAY_ERRO: ${e.message}")
         }
@@ -809,8 +903,12 @@ class KmCertoOverlayService : Service() {
     }
 
     fun stop(ctx: Context) {
-      Handler(Looper.getMainLooper()).post {
+      mainHandler.post {
         try {
+          // Cancelar qualquer dismiss pendente
+          dismissRunnable?.let { mainHandler.removeCallbacks(it) }
+          dismissRunnable = null
+
           val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
           overlayView?.let { wm.removeView(it) }
           overlayView = null
