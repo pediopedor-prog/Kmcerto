@@ -196,12 +196,14 @@ object KmCertoRuntime {
       "com.ubercab.driver:id/text_duration",
       "com.ubercab.driver:id/trip_card_fare",
       "com.ubercab.driver:id/upfront_fare_value",
-      // IDs adicionais comuns em versões recentes
       "com.ubercab.driver:id/trip_fare_text",
       "com.ubercab.driver:id/fare_amount",
       "com.ubercab.driver:id/earning_value",
       "com.ubercab.driver:id/trip_info_distance",
       "com.ubercab.driver:id/trip_info_time",
+      "com.ubercab.driver:id/map_marker_title",
+      "com.ubercab.driver:id/text_container",
+      "com.ubercab.driver:id/ub__tracker_entry_content_view"
     ),
     "com.app99.driver" to listOf(
       "com.app99.driver:id/price",
@@ -213,6 +215,9 @@ object KmCertoRuntime {
       "com.app99.driver:id/tv_duration",
       "com.app99.driver:id/text_value",
       "com.app99.driver:id/text_distance",
+      "com.app99.driver:id/broad_order_container",
+      "com.app99.driver:id/flutter_deal_gesture_container",
+      "com.app99.driver:id/main_flutter_flutter_root"
     ),
     "com.taxis99.driver" to listOf(
       "com.taxis99.driver:id/price",
