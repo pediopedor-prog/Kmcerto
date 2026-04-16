@@ -21,7 +21,20 @@ object KmCertoOfferParser {
         if (text.isBlank()) return null
         val sourceApp = KmCertoRuntime.sourceLabel(sourcePkg)
         val fare = extractFare(text) ?: return null
-        val distance = extractDistance(text) ?: return null
+        
+        // Se for o gatilho "X corrida(s)" da 99, a distância pode vir em outro evento.
+        // O parser tenta extrair a distância, se não encontrar, verificamos se é um gatilho.
+        var distance = extractDistance(text)
+        
+        if (distance == null) {
+            // Se contém "corrida(s)" (99) ou "COMEÇAR" (Uber), tratamos como gatilho de leitura
+            if (text.contains("corrida(s)", ignoreCase = true) || text.contains("COMEÇAR", ignoreCase = true)) {
+                distance = 0.0 // Valor simbólico para não descartar a oferta
+            } else {
+                return null
+            }
+        }
+        
         val minutes = extractMinutes(text)
         return createDecision(fare, distance, minutes, minPerKm, sourceApp, text)
     }
@@ -44,6 +57,13 @@ object KmCertoOfferParser {
                 ?.replace(".", "")
                 ?.replace(",", ".")
                 ?.toDoubleOrNull()
+        }
+
+        // Suporte para "+R$ 3" (Uber Boost/Gatilho)
+        val boostPattern = Pattern.compile("""\+R\$\s*(\d+(?:[.,]\d+)?)""")
+        val boostMatcher = boostPattern.matcher(text)
+        if (boostMatcher.find()) {
+            return boostMatcher.group(1)?.replace(",", ".")?.toDoubleOrNull()
         }
 
         // Fallback: R$ seguido de valor inteiro (sem centavos) ex: R$ 15
@@ -128,6 +148,10 @@ object KmCertoOfferParser {
         if (matcherGeneric.find()) {
             return matcherGeneric.group(1)?.replace(",", ".")?.toDoubleOrNull()
         }
+
+        // Suporte para "X corrida(s)" (99 Driver gatilho)
+        // Se encontrar isso e não tiver distância, podemos retornar um valor simbólico ou null
+        // O PDF diz que isso é um gatilho para ler o próximo texto.
 
         return null
     }
