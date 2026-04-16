@@ -1,61 +1,3 @@
-Manus app
-Deixe isso com Manus
-Abrir app
-
-Lite
-Concluí as alterações no seu aplicativo Kmcerto com base no Guia Mestre de Configuração fornecido.
-As principais modificações incluíram:
-Uber Driver: Adição dos IDs de monitoramento map_marker_title, text_container e ub__tracker_entry_content_view.
-99 Driver: Adição dos IDs broad_order_container, flutter_deal_gesture_container e main_flutter_flutter_root.
-Lógica de Extração: Atualizei o parser para reconhecer o formato de bônus da Uber (+R$) e preparei a estrutura para os novos gatilhos de leitura.
-O arquivo ZIP anexo contém o projeto completo com todas as alterações aplicadas nos arquivos Kotlin do módulo nativo.
-Kmcerto_updated.zip
-Arquivar · 499.74 KB
-Ver todos os arquivos nesta tarefa
-Como foi este resultado?
-Me mande o arquivo que foi alterado
-Lite
-Aqui estão os dois arquivos que foram alterados no seu projeto para incluir as novas configurações de monitoramento da Uber e 99 Driver:
-KmCertoNativeModule.kt: Onde adicionei os novos Resource IDs de monitoramento (map_marker_title, broad_order_container, etc.).
-KmCertoOfferParser.kt: Onde atualizei a lógica de extração para suportar novos formatos de texto como o bônus da Uber (+R$).
-Estes arquivos devem ser substituídos em suas respectivas pastas dentro do módulo nativo do seu projeto.
-KmCertoNativeModule.kt
-Código · 40.44 KB
-KmCertoOfferParser.kt
-Código · 7.79 KB
-Ver todos os arquivos nesta tarefa
-Como foi este resultado?
-Continua não lendo as corridas porque será 
-Lite
-Entendo que as corridas ainda não estão sendo lidas. Vou analisar os logs do sistema e a estrutura de acessibilidade para diagnosticar por que o monitoramento não está capturando os eventos, mesmo com os novos IDs. Aguarde um momento.
-Revisei os logs e estrutura de acessibilidade, confirmando que as mudanças nos IDs foram aplicadas. Próximo passo: verificar se a captura de eventos está funcionando corretamente.
-
-Revisei a lógica de busca por IDs no arquivo, incluindo novos gatilhos do PDF, como "title", "container" e "root", para assegurar captura correta das corridas. Próximo passo: testar captura de eventos.
-
-Atualizei o parser para reconhecer o gatilho "X corrida(s)" da 99, ajustando a captura de eventos sem descartar ofertas. Reduzi o debounce para 2 segundos para melhorar a responsividade. Próximo passo: testar a captura de eventos com essas melhorias.
-
-Lite
-Identifiquei o problema: os novos IDs da Uber e 99 (como map_marker_title e broad_order_container) estavam sendo monitorados, mas a lógica interna os descartava por não conterem as palavras "fare" ou "price" no nome do ID, ou por não possuírem distância no momento do gatilho.
-Correções aplicadas:
-Lógica de Gatilho: Atualizei o KmCertoNativeModule.kt para aceitar IDs que contenham title, container, content_view e root como fontes válidas de dados.
-Suporte a Gatilhos de Texto: No KmCertoOfferParser.kt, adicionei suporte para que o app não descarte a oferta se encontrar "corrida(s)" (99) ou "COMEÇAR" (Uber), mesmo que a distância ainda não tenha aparecido na tela.
-Responsividade: Reduzi o tempo de espera (debounce) para 2 segundos, permitindo que o app capture atualizações rápidas da interface.
-Enviei o projeto completo corrigido e também os dois arquivos individuais para substituição manual. Por favor, teste esta versão.
-Kmcerto_final_fix.zip
-Arquivar · 500.00 KB
-KmCertoNativeModule.kt
-Código · 40.60 KB
-KmCertoOfferParser.kt
-Código · 8.37 KB
-Ver todos os arquivos nesta tarefa
-Tarefa concluída
-Como foi este resultado?
-Sugestões de acompanhamento
-
-
-
-
-KmCertoNativeModule.kt
 package expo.modules.kmcertonative
 
 import android.accessibilityservice.AccessibilityService
@@ -998,4 +940,3 @@ class KmCertoOverlayService : Service() {
 
   override fun onBind(intent: Intent?) = null as IBinder?
 }
-Guia Mestre de Configuração para Uber e 9 - Manus
