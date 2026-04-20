@@ -870,38 +870,26 @@ class KmCertoOverlayService : Service() {
           container.addView(row)
 
           // ══════════════════════════════════════════════════════════════
-          // CORREÇÃO: Overlay é clicável para fechar manualmente.
-          // Toque no overlay = fecha imediatamente.
-          // ══════════════════════════════════════════════════════════════
-          container.setOnClickListener {
-            stop(ctx)
-          }
-
+          // O overlay não precisa de foco — FLAG_NOT_FOCUSABLE garante que
+          // toques passem para o app por baixo E que o auto-dismiss funcione
           val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
-            // ══════════════════════════════════════════════════════════════
-            // CORREÇÃO: Removido FLAG_NOT_FOCUSABLE para permitir toque.
-            // Mantido FLAG_NOT_TOUCH_MODAL para que toques fora do overlay
-            // passem para o app por baixo.
-            // ══════════════════════════════════════════════════════════════
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
           ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; y = dp(ctx, 72) }
 
           wm.addView(container, params)
           overlayView = container
 
-          // ══════════════════════════════════════════════════════════════
-          // CORREÇÃO: Auto-dismiss reduzido de 8000ms para 5000ms.
-          // Usa Runnable cancelável para evitar dismiss fantasma.
-          // ══════════════════════════════════════════════════════════════
+          // Auto-dismiss em 8 segundos — tempo suficiente para ler e decidir
           val runnable = Runnable { stop(ctx) }
           dismissRunnable = runnable
-          mainHandler.postDelayed(runnable, 5000)
+          mainHandler.postDelayed(runnable, 8000)
         } catch (e: Throwable) {
           KmCertoLogger.log("OVERLAY_ERRO: ${e.message}")
         }
@@ -940,3 +928,4 @@ class KmCertoOverlayService : Service() {
 
   override fun onBind(intent: Intent?) = null as IBinder?
 }
+
